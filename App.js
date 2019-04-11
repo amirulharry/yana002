@@ -1,5 +1,5 @@
 import React, { Component } from 'react';
-import { Platform, StyleSheet, Text, View,Alert,Button } from 'react-native';
+import { Platform, StyleSheet, Text, View,Alert,Button,AsyncStorage } from 'react-native';
 import firebase from 'react-native-firebase';
 
 const instructions = Platform.select({
@@ -15,7 +15,7 @@ export default class App extends Component {
     super();
     this.state = {
       token: ''
-    };
+    };   
   }
   
   componentDidMount() {
@@ -31,35 +31,118 @@ export default class App extends Component {
 
     console.log('Component did mount2');
 
-          firebase.messaging().requestPermission()
-            .then(() => {
-              console.log('Permission completed');
-            });
+    firebase.messaging().requestPermission()
+      .then(() => {
+        console.log('Permission completed');
+      });
 
-          setTimeout(() => {
-            firebase.messaging().getToken()
-              .then(token => {
+    setTimeout(() => {
+      firebase.messaging().getToken()
+        .then(token => {
 
-                firebase.database().ref("Token").push({
-                  token: token
-                }).then((data) => {
+          firebase.database().ref("Token").push({
+            token: token
+          }).then((data) => {
 
-                  alert("save:" + token);
-                }).catch((error) => {
-                  //error callback
-                  alert("can't save " + error);
-                })
+            alert("save:" + token);
+          }).catch((error) => {
+            //error callback
+            alert("can't save " + error);
+          })
 
-                this.setState({ token });
-                alert(token);
-              })
-              .catch(err => {
-                alert(err);
-              });
-          }, 3000);
+          this.setState({ token });
+          //alert(token);
+        })
+        .catch(err => {
+          alert(err);
+        });
+    }, 3000);
 
-    this.doThings;
+    setTimeout(() => {
+      this.createNotificationListeners();     
+    },1000);
   }
+
+  setValue = async (text) => {
+    try {
+      alert("set",text);
+      console.log("set",text);
+      await AsyncStorage.setItem('Mego', text)
+    } catch(e) {
+      alert("error set",e);
+      console.log("error set",e);
+      // save error
+    }
+
+    console.log('Done set')
+  }
+
+  getMyValue = async () => {
+    try {
+      const value = await AsyncStorage.getItem('Mego');
+      return value;
+    } catch(e) {
+      alert("error get",e);
+      console.log("error get",e);
+      // read error
+    }
+
+    console.log('Done get')
+  }
+
+  async createNotificationListeners() {
+  /*
+  * Triggered when a particular notification has been received in foreground
+  * */
+  this.notificationListener = firebase.notifications().onNotification((notification) => {
+      const { title, body } = notification;
+      //alert("aaaaa") ;
+      console.log("noti norm");
+      console.log(notification, "||", title, "||", body);
+      setValue(title);
+      getMyValue().then(x => { alert(x); });
+      //this.showAlert(title, body);
+  });
+
+  /*
+  * If your app is in background, you can listen for when a notification is clicked / tapped / opened as follows:
+  * */
+  this.notificationOpenedListener = firebase.notifications().onNotificationOpened((notificationOpen) => {
+      const { title, body } = notificationOpen.notification;
+      //alert(title) ;
+      console.log("noti open");
+      setValue(title);
+      getMyValue().then(x => { alert(x); });
+      //this.showAlert(title, body);
+  });
+
+  /*
+  * If your app is closed, you can check if it was opened by a notification being clicked / tapped / opened as follows:
+  * */
+  const notificationOpen = await firebase.notifications().getInitialNotification();
+  if (notificationOpen) {
+      const { title, body } = notificationOpen.notification;
+      alert(title) ;
+      //this.showAlert(title, body);
+  }
+  /*
+  * Triggered for data only payload in foreground
+  * */
+  this.messageListener = firebase.messaging().onMessage((message) => {
+    //process data message
+    console.log(JSON.stringify(message));
+  });
+}
+
+showAlert(title, body) {
+  Alert.alert(
+    title, body,
+    [
+        { text: 'OK', onPress: () => console.log('OK Pressed') },
+    ],
+    { cancelable: false },
+  );
+}
 
   render() {
     return (
